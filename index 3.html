@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Party Ledger</title>
+
+<style>
+body { font-family: Arial; background:#f2f4f7; margin:0; padding:15px; }
+h1 { text-align:center; }
+
+.card {
+    background:white;
+    padding:20px;
+    margin-bottom:20px;
+    border-radius:12px;
+    box-shadow:0 4px 10px rgba(0,0,0,0.08);
+}
+
+input, select, button {
+    width:100%;
+    padding:12px;
+    margin:6px 0;
+    border-radius:8px;
+    border:1px solid #ccc;
+    font-size:16px;
+}
+
+button {
+    background:#1f3c88;
+    color:white;
+    border:none;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+table {
+    width:100%;
+    border-collapse:collapse;
+}
+
+th, td {
+    border:1px solid #ddd;
+    padding:8px;
+    text-align:center;
+    font-size:14px;
+}
+
+.negative { color:red; font-weight:bold; }
+.small-btn {
+    padding:6px;
+    font-size:12px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Party Ledger</h1>
+
+<div class="card">
+<h2>Add Party</h2>
+<input type="text" id="partyName" placeholder="Party Name">
+<button onclick="addParty()">Add Party</button>
+</div>
+
+<div class="card">
+<h2>Add Purchase / Payment</h2>
+<select id="partySelect"></select>
+<input type="date" id="date">
+<input type="number" id="purchase" placeholder="Purchase Amount">
+<input type="number" id="payment" placeholder="Payment Made">
+<input type="file" id="billFile" accept="image/*,.pdf">
+<button onclick="addTransaction()">Save Entry</button>
+</div>
+
+<div class="card">
+<h2>Transaction Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Party</th>
+<th>Date</th>
+<th>Purchase</th>
+<th>Payment</th>
+<th>Pending</th>
+<th>Bill</th>
+</tr>
+</thead>
+<tbody id="summaryTable"></tbody>
+</table>
+</div>
+
+<script>
+
+const STORAGE_KEY = "PWA_PARTY_LEDGER_STABLE";
+let parties = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+
+function saveData(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(parties));
+}
+
+function format(num){
+    return Number(num).toLocaleString("en-IN");
+}
+
+function addParty(){
+    const name = document.getElementById("partyName").value.trim();
+    if(!name) return;
+
+    parties.push({name, transactions:[]});
+    saveData();
+    render();
+    document.getElementById("partyName").value="";
+}
+
+function addTransaction(){
+
+    const index = document.getElementById("partySelect").value;
+    const date = document.getElementById("date").value;
+    const purchase = parseFloat(document.getElementById("purchase").value) || 0;
+    const payment = parseFloat(document.getElementById("payment").value) || 0;
+    const fileInput = document.getElementById("billFile");
+
+    if(index==="" || !date){
+        alert("Select party and date");
+        return;
+    }
+
+    if(fileInput.files.length > 0){
+        const reader = new FileReader();
+        reader.onload = function(e){
+            saveTransaction(index,date,purchase,payment,e.target.result);
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+    } else {
+        saveTransaction(index,date,purchase,payment,null);
+    }
+}
+
+function saveTransaction(index,date,purchase,payment,bill){
+
+    parties[index].transactions.push({
+        date,
+        purchase,
+        payment,
+        bill
+    });
+
+    saveData();
+    render();
+
+    document.getElementById("purchase").value="";
+    document.getElementById("payment").value="";
+    document.getElementById("billFile").value="";
+}
+
+function render(){
+
+    const select = document.getElementById("partySelect");
+    const table = document.getElementById("summaryTable");
+
+    select.innerHTML="";
+    table.innerHTML="";
+
+    parties.forEach((party,partyIndex)=>{
+
+        select.innerHTML += `<option value="${partyIndex}">${party.name}</option>`;
+
+        party.transactions.forEach((t)=>{
+
+            const pending = t.purchase - t.payment;
+
+            let billSection;
+
+            if(t.bill){
+                billSection = `<a href="${t.bill}" target="_blank">View Bill</a>`;
+            } else {
+                billSection = "No Bill";
+            }
+
+            table.innerHTML += `
+            <tr>
+            <td>${party.name}</td>
+            <td>${t.date}</td>
+            <td>Rs. ${format(t.purchase)}</td>
+            <td>Rs. ${format(t.payment)}</td>
+            <td class="negative">Rs. ${format(pending)}</td>
+            <td>${billSection}</td>
+            </tr>
+            `;
+        });
+
+    });
+
+    if(table.innerHTML===""){
+        table.innerHTML=`<tr><td colspan="6">No Transactions</td></tr>`;
+    }
+}
+
+render();
+
+</script>
+
+</body>
+</html>
